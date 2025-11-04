@@ -2,7 +2,7 @@ import anyio
 import logging
 import click
 from .server import build_application
-from .configs import SERVER_VERSION, SERVER_LOCALHOST, UVICORN_LOGGING_CONFIG
+from .configs import DEFAULT_SERVER_HOST, SERVER_VERSION, UVICORN_LOGGING_CONFIG
 
 __version__ = SERVER_VERSION
 
@@ -13,7 +13,13 @@ logging.basicConfig(
 
 
 @click.command()
-@click.option("--port", default=8000, help="Port to listen on for SSE")
+@click.option(
+    "--host",
+    default=DEFAULT_SERVER_HOST,
+    show_default=True,
+    help="(Default: `0.0.0.0`) Host/IP address to bind the HTTP server",
+)
+@click.option("--port", default=8000, show_default=True, help="Port to listen on for SSE")
 @click.option(
     "--transport",
     type=click.Choice(["stdio", "sse", "stream"]),
@@ -52,6 +58,7 @@ logging.basicConfig(
     help="(Default: `False`) Enable JSON responses instead of SSE streams. Only supported for `stream` transport.",
 )
 def main(
+    host,
     port,
     transport,
     db_path,
@@ -74,6 +81,8 @@ def main(
         read_only=read_only,
     )
 
+    display_host = "localhost" if host in {"0.0.0.0", "::"} else host
+
     if transport == "sse":
         from mcp.server.sse import SseServerTransport
         from starlette.applications import Starlette
@@ -92,8 +101,10 @@ def main(
             return Response()
 
         logger.info(
-            f"🦆 Connect to MotherDuck MCP Server at \033[1m\033[36mhttp://{SERVER_LOCALHOST}:{port}/sse\033[0m"
+            f"🦆 Connect to MotherDuck MCP Server at \033[1m\033[36mhttp://{display_host}:{port}/sse\033[0m"
         )
+        if display_host != host:
+            logger.info(f"Binding HTTP server to {host}:{port}")
 
         starlette_app = Starlette(
             debug=True,
@@ -107,7 +118,7 @@ def main(
 
         uvicorn.run(
             starlette_app,
-            host=SERVER_LOCALHOST,
+            host=host,
             port=port,
             log_config=UVICORN_LOGGING_CONFIG,
         )
@@ -148,8 +159,10 @@ def main(
                     )
 
         logger.info(
-            f"🦆 Connect to MotherDuck MCP Server at \033[1m\033[36mhttp://{SERVER_LOCALHOST}:{port}/mcp\033[0m"
+            f"🦆 Connect to MotherDuck MCP Server at \033[1m\033[36mhttp://{display_host}:{port}/mcp\033[0m"
         )
+        if display_host != host:
+            logger.info(f"Binding HTTP server to {host}:{port}")
 
         # Create an ASGI application using the transport
         starlette_app = Starlette(
@@ -164,7 +177,7 @@ def main(
 
         uvicorn.run(
             starlette_app,
-            host=SERVER_LOCALHOST,
+            host=host,
             port=port,
             log_config=UVICORN_LOGGING_CONFIG,
         )
